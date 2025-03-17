@@ -2,7 +2,7 @@
 
 A web-based version of the classic Flappy Bird game, built with HTML5 Canvas and JavaScript. Navigate the bird through a series of pipes by flapping its wings, aiming for the highest score possible!
 
-**[Play it live here!](https://gvnghiem.github.io/flappybird-js/flappybird.html)** 
+**[Play it live here!](https://gvnghiem.github.io/flappy-bird-js/)** 
 
 ## Features
 - **Gameplay**: Tap or press `SPACE` to flap the bird and avoid pipes.
