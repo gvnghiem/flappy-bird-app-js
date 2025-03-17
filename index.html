@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird (JS)</title>
+</head>
+<body style="margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #87ceeb;">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Constants
+        const SCREEN_WIDTH = 400;
+        const SCREEN_HEIGHT = 600;
+        const SKY_BLUE = '#87ceeb';
+        const WHITE = '#ffffff';
+        const BLACK = '#000000';
+        const GRAVITY = 0.5;
+        const FLAP_POWER = -10;
+        const PIPE_GAP = 150;
+        const PIPE_SPEED = 3;
+        const BIRD_WIDTH = 34;
+        const BIRD_HEIGHT = 24;
+        const PIPE_WIDTH = 43;
+        const BIRD_FRAMES = [
+            { x: 0, y: 766 },
+            { x: 44, y: 766 },
+            { x: 88, y: 766 }
+        ];
+
+        // Load assets
+        const spriteSheet = new Image();
+        spriteSheet.src = 'spritesheet.png';
+        const sounds = {
+            die: new Audio('die.mp3'),
+            hit: new Audio('hit.mp3'),
+            flap: new Audio('flap.mp3'),
+            point: new Audio('point.mp3')
+        };
+
+        // Game state
+        let gameState = 'IDLE'; // 'IDLE', 'PLAYING', 'GAME_OVER'
+        let birdX = SCREEN_WIDTH / 4;
+        let birdY = SCREEN_HEIGHT / 2;
+        let birdVelocity = 0;
+        let birdFrame = 0;
+        let birdAnimationCounter = 0;
+        const birdAnimationSpeed = 0.1;
+        let pipes = [];
+        let score = 0;
+
+        // Load sprites from sheet
+        function loadSpriteFromSheet(img, x, y, width, height) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (x + width > img.width || y + height > img.height || x < 0 || y < 0) {
+                console.error(`Sprite at (${x}, ${y}, ${width}, ${height}) exceeds sheet size (${img.width}, ${img.height})`);
+                tempCtx.fillStyle = SKY_BLUE;
+                tempCtx.fillRect(0, 0, width, height);
+            } else {
+                tempCtx.drawImage(img, x, y, width, height, 0, 0, width, height);
+            }
+            return tempCanvas;
+        }
+
+        // Preload assets
+        let background, birdFrames, topPipeBase, bottomPipeBase;
+        spriteSheet.onload = () => {
+            background = loadSpriteFromSheet(spriteSheet, 0, 0, 225, 400);
+            background = resizeSprite(background, SCREEN_WIDTH, SCREEN_HEIGHT);
+            birdFrames = BIRD_FRAMES.map(frame => loadSpriteFromSheet(spriteSheet, frame.x, frame.y, BIRD_WIDTH, BIRD_HEIGHT));
+            const pipeBase = loadSpriteFromSheet(spriteSheet, 0, 504, PIPE_WIDTH, 250);
+            topPipeBase = flipSpriteVertical(pipeBase);
+            bottomPipeBase = pipeBase;
+            startGame();
+        };
+        spriteSheet.onerror = () => {
+            console.error('Failed to load sprite sheet');
+            background = createFallback(SCREEN_WIDTH, SCREEN_HEIGHT, SKY_BLUE);
+            birdFrames = BIRD_FRAMES.map(() => createFallback(BIRD_WIDTH, BIRD_HEIGHT, WHITE));
+            topPipeBase = bottomPipeBase = createFallback(PIPE_WIDTH, 250, '#00ff00');
+            startGame();
+        };
+
+        function resizeSprite(sprite, width, height) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            tempCanvas.getContext('2d').drawImage(sprite, 0, 0, width, height);
+            return tempCanvas;
+        }
+
+        function flipSpriteVertical(sprite) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = sprite.width;
+            tempCanvas.height = sprite.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.scale(1, -1);
+            tempCtx.drawImage(sprite, 0, -sprite.height);
+            return tempCanvas;
+        }
+
+        function createFallback(width, height, color) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.fillStyle = color;
+            tempCtx.fillRect(0, 0, width, height);
+            return tempCanvas;
+        }
+
+        // Game logic
+        function spawnPipe() {
+            const height = Math.floor(Math.random() * (SCREEN_HEIGHT - PIPE_GAP - 200)) + 100;
+            pipes.push({ x: SCREEN_WIDTH, height, passed: false });
+        }
+
+        function drawBird(x, y, frame) {
+            ctx.drawImage(birdFrames[frame], x, y);
+        }
+
+        function drawPipe(x, height) {
+            const topPipe = resizeSprite(topPipeBase, PIPE_WIDTH, height);
+            ctx.drawImage(topPipe, x, 0);
+            const bottomHeight = SCREEN_HEIGHT - (height + PIPE_GAP);
+            const bottomPipe = resizeSprite(bottomPipeBase, PIPE_WIDTH, bottomHeight);
+            ctx.drawImage(bottom_pipe, x, height + PIPE_GAP);
+        }
+
+        function checkCollision(birdX, birdY, pipeX, pipeHeight) {
+            const birdRect = { x: birdX, y: birdY, width: BIRD_WIDTH, height: BIRD_HEIGHT };
+            const topPipeRect = { x: pipeX, y: 0, width: PIPE_WIDTH, height: pipeHeight };
+            const bottomPipeRect = { x: pipeX, y: pipeHeight + PIPE_GAP, width: PIPE_WIDTH, height: SCREEN_HEIGHT - (pipeHeight + PIPE_GAP) };
+            if (birdY < 0 || birdY + BIRD_HEIGHT > SCREEN_HEIGHT) {
+                sounds.die.play().catch(() => console.log('Audio blocked'));
+                return true;
+            }
+            if (rectCollide(birdRect, topPipeRect) || rectCollide(birdRect, customPipeRect)) {
+                sounds.hit.play().catch(() => console.log('Audio blocked'));
+                return true;
+            }
+            return false;
+        }
+
+        function rectCollide(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        function resetGame() {
+            birdY = SCREEN_HEIGHT / 2;
+            birdVelocity = 0;
+            pipes = [];
+            spawnPipe();
+            score = 0;
+            birdFrame = 0;
+        }
+
+        // Input handling
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (gameState === 'IDLE') {
+                    resetGame();
+                    gameState = 'PLAYING';
+                } else if (gameState === 'PLAYING') {
+                    birdVelocity = FLAP_POWER;
+                    sounds.flap.play().catch(() => console.log('Audio blocked'));
+                } else if (gameState === 'GAME_OVER') {
+                    resetGame();
+                    gameState = 'IDLE';
+                }
+            } else if (e.code === 'KeyQ' && (gameState === 'IDLE' || gameState === 'GAME_OVER')) {
+                window.close(); // Won't work in most browsers, just for analogy
+            }
+        });
+
+        // Game loop
+        function gameLoop() {
+            ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            ctx.drawImage(background, 0, 0);
+
+            if (gameState === 'IDLE') {
+                birdY = SCREEN_HEIGHT / 2 + 20 * Math.sin(Date.now() / 100);
+                drawBird(birdX, birdY, Math.floor(birdFrame));
+                birdAnimationCounter += birdAnimationSpeed;
+                if (birdAnimationCounter >= 1) {
+                    birdAnimationCounter = 0;
+                    birdFrame = (birdFrame + 1) % birdFrames.length;
+                }
+                ctx.fillStyle = WHITE;
+                ctx.strokeStyle = BLACK;
+                ctx.lineWidth = 4;
+                ctx.font = '36px Arial';
+                ctx.strokeText('Press SPACE to Start', SCREEN_WIDTH / 2 - 150, SCREEN_HEIGHT / 2);
+                ctx.fillText('Press SPACE to Start', SCREEN_WIDTH / 2 - 150, SCREEN_HEIGHT / 2);
+            } else if (gameState === 'PLAYING') {
+                birdVelocity += GRAVITY;
+                birdY += birdVelocity;
+                birdAnimationCounter += birdVelocity < 0 ? 0.2 : 0.05;
+                if (birdAnimationCounter >= 1) {
+                    birdAnimationCounter = 0;
+                    birdFrame = (birdFrame + 1) % birdFrames.length;
+                }
+
+                if (!pipes.length || pipes[pipes.length - 1].x < SCREEN_WIDTH - 200) {
+                    spawnPipe();
+                }
+
+                pipes = pipes.filter(pipe => {
+                    pipe.x -= PIPE_SPEED;
+                    if (pipe.x < -PIPE_WIDTH) return false;
+                    if (checkCollision(birdX, birdY, pipe.x, pipe.height)) {
+                        gameState = 'GAME_OVER';
+                    }
+                    const birdRightX = birdX + BIRD_WIDTH;
+                    if (!pipe.passed && birdRightX > pipe.x) {
+                        if (pipe.height < birdY + BIRD_HEIGHT / 2 && birdY + BIRD_HEIGHT / 2 < pipe.height + PIPE_GAP) {
+                            score++;
+                            pipe.passed = true;
+                            sounds.point.play().catch(() => console.log('Audio blocked'));
+                        }
+                    }
+                    drawPipe(pipe.x, pipe.height);
+                    return true;
+                });
+
+                drawBird(birdX, birdY, Math.floor(birdFrame));
+                ctx.fillStyle = WHITE;
+                ctx.font = '36px Arial';
+                ctx.fillText(`Score: ${score}`, 10, 40);
+            } else if (gameState === 'GAME_OVER') {
+                pipes.forEach(pipe => drawPipe(pipe.x, pipe.height));
+                drawBird(birdX, birdY, Math.floor(birdFrame));
+                ctx.fillStyle = WHITE;
+                ctx.strokeStyle = BLACK;
+                ctx.lineWidth = 4;
+                ctx.font = '36px Arial';
+                ctx.strokeText('Game Over!', SCREEN_WIDTH / 2 - 80, SCREEN_HEIGHT / 2 - 20);
+                ctx.fillText('Game Over!', SCREEN_WIDTH / 2 - 80, SCREEN_HEIGHT / 2 - 20);
+                ctx.strokeText('Press SPACE to Restart', SCREEN_WIDTH / 2 - 150, SCREEN_HEIGHT / 2 + 20);
+                ctx.fillText('Press SPACE to Restart', SCREEN_WIDTH / 2 - 150, SCREEN_HEIGHT / 2 + 20);
+                ctx.fillText(`Score: ${score}`, 10, 40);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            console.log('Assets loaded, starting game');
+            gameLoop();
+        }
+    </script>
+</body>
+</html>
