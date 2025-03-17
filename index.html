@@ -160,99 +160,112 @@
             console.log('Game reset');
         }
 
+        // Keyboard input
         document.addEventListener('keydown', (e) => {
             console.log('Key pressed:', e.code);
             if (e.code === 'Space') {
                 e.preventDefault();
-                if (gameState === 'IDLE') {
-                    resetGame();
-                    gameState = 'PLAYING';
-                } else if (gameState === 'PLAYING') {
-                    birdVelocity = FLAP_POWER;
-                    sounds.flap.play().catch(() => console.log('Audio blocked'));
-                } else if (gameState === 'GAME_OVER') {
-                    resetGame();
-                    gameState = 'IDLE';
-                }
+                handleFlap();
             } else if (e.code === 'KeyQ' && (gameState === 'IDLE' || gameState === 'GAME_OVER')) {
                 window.close();
             }
         });
 
-function gameLoop() {
-    ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-    ctx.drawImage(background, 0, 0);
-
-    if (gameState === 'IDLE') {
-        birdY = SCREEN_HEIGHT / 2 + 20 * Math.sin(Date.now() / 100);
-        drawBird(birdX, birdY, Math.floor(birdFrame));
-        birdAnimationCounter += birdAnimationSpeed;
-        if (birdAnimationCounter >= 1) {
-            birdAnimationCounter = 0;
-            birdFrame = (birdFrame + 1) % birdFrames.length;
-        }
-        ctx.fillStyle = WHITE;
-        ctx.strokeStyle = BLACK;
-        ctx.lineWidth = 4;
-        ctx.font = '24px Arial'; // Smaller font size (was 36px)
-        ctx.textAlign = 'center'; // Center align text
-        ctx.strokeText('Press SPACE to Start', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
-        ctx.fillText('Press SPACE to Start', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
-    } else if (gameState === 'PLAYING') {
-        console.log('Playing state: birdY=', birdY, 'pipes=', pipes.length);
-        birdVelocity += GRAVITY;
-        birdY += birdVelocity;
-        birdAnimationCounter += birdVelocity < 0 ? 0.2 : 0.05;
-        if (birdAnimationCounter >= 1) {
-            birdAnimationCounter = 0;
-            birdFrame = (birdFrame + 1) % birdFrames.length;
-        }
-
-        if (!pipes.length || pipes[pipes.length - 1].x < SCREEN_WIDTH - 200) {
-            spawnPipe();
-        }
-
-        pipes = pipes.filter(pipe => {
-            pipe.x -= PIPE_SPEED;
-            if (pipe.x < -PIPE_WIDTH) return false;
-            if (checkCollision(birdX, birdY, pipe.x, pipe.height)) {
-                gameState = 'GAME_OVER';
-            }
-            const birdRightX = birdX + BIRD_WIDTH;
-            if (!pipe.passed && birdRightX > pipe.x) {
-                if (pipe.height < birdY + BIRD_HEIGHT / 2 && birdY + BIRD_HEIGHT / 2 < pipe.height + PIPE_GAP) {
-                    score++;
-                    pipe.passed = true;
-                    sounds.point.play().catch(() => console.log('Audio blocked'));
-                }
-            }
-            drawPipe(pipe.x, pipe.height);
-            return true;
+        // Touch input for iOS/mobile
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            console.log('Touch detected');
+            handleFlap();
         });
 
-        drawBird(birdX, birdY, Math.floor(birdFrame));
-        ctx.fillStyle = WHITE;
-        ctx.font = '36px Arial';
-        ctx.textAlign = 'left'; // Reset to left for score
-        ctx.fillText(`Score: ${score}`, 10, 40);
-    } else if (gameState === 'GAME_OVER') {
-        pipes.forEach(pipe => drawPipe(pipe.x, pipe.height));
-        drawBird(birdX, birdY, Math.floor(birdFrame));
-        ctx.fillStyle = WHITE;
-        ctx.strokeStyle = BLACK;
-        ctx.lineWidth = 4;
-        ctx.font = '36px Arial';
-        ctx.textAlign = 'center';
-        ctx.strokeText('Game Over!', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20);
-        ctx.fillText('Game Over!', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20);
-        ctx.strokeText('Press SPACE to Restart', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 20);
-        ctx.fillText('Press SPACE to Restart', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 20);
-        ctx.textAlign = 'left';
-        ctx.fillText(`Score: ${score}`, 10, 40);
-    }
+        // Common flap logic for both keyboard and touch
+        function handleFlap() {
+            if (gameState === 'IDLE') {
+                resetGame();
+                gameState = 'PLAYING';
+            } else if (gameState === 'PLAYING') {
+                birdVelocity = FLAP_POWER;
+                sounds.flap.play().catch(() => console.log('Audio blocked'));
+            } else if (gameState === 'GAME_OVER') {
+                resetGame();
+                gameState = 'IDLE';
+            }
+        }
 
-    requestAnimationFrame(gameLoop);
-}
+        function gameLoop() {
+            ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            ctx.drawImage(background, 0, 0);
+
+            if (gameState === 'IDLE') {
+                birdY = SCREEN_HEIGHT / 2 + 20 * Math.sin(Date.now() / 100);
+                drawBird(birdX, birdY, Math.floor(birdFrame));
+                birdAnimationCounter += birdAnimationSpeed;
+                if (birdAnimationCounter >= 1) {
+                    birdAnimationCounter = 0;
+                    birdFrame = (birdFrame + 1) % birdFrames.length;
+                }
+                ctx.fillStyle = WHITE;
+                ctx.strokeStyle = BLACK;
+                ctx.lineWidth = 4;
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeText('Press SPACE to Start', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+                ctx.fillText('Press SPACE to Start', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+            } else if (gameState === 'PLAYING') {
+                console.log('Playing state: birdY=', birdY, 'pipes=', pipes.length);
+                birdVelocity += GRAVITY;
+                birdY += birdVelocity;
+                birdAnimationCounter += birdVelocity < 0 ? 0.2 : 0.05;
+                if (birdAnimationCounter >= 1) {
+                    birdAnimationCounter = 0;
+                    birdFrame = (birdFrame + 1) % birdFrames.length;
+                }
+
+                if (!pipes.length || pipes[pipes.length - 1].x < SCREEN_WIDTH - 200) {
+                    spawnPipe();
+                }
+
+                pipes = pipes.filter(pipe => {
+                    pipe.x -= PIPE_SPEED;
+                    if (pipe.x < -PIPE_WIDTH) return false;
+                    if (checkCollision(birdX, birdY, pipe.x, pipe.height)) {
+                        gameState = 'GAME_OVER';
+                    }
+                    const birdRightX = birdX + BIRD_WIDTH;
+                    if (!pipe.passed && birdRightX > pipe.x) {
+                        if (pipe.height < birdY + BIRD_HEIGHT / 2 && birdY + BIRD_HEIGHT / 2 < pipe.height + PIPE_GAP) {
+                            score++;
+                            pipe.passed = true;
+                            sounds.point.play().catch(() => console.log('Audio blocked'));
+                        }
+                    }
+                    drawPipe(pipe.x, pipe.height);
+                    return true;
+                });
+
+                drawBird(birdX, birdY, Math.floor(birdFrame));
+                ctx.fillStyle = WHITE;
+                ctx.font = '36px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`Score: ${score}`, 10, 40);
+            } else if (gameState === 'GAME_OVER') {
+                pipes.forEach(pipe => drawPipe(pipe.x, pipe.height));
+                drawBird(birdX, birdY, Math.floor(birdFrame));
+                ctx.fillStyle = WHITE;
+                ctx.strokeStyle = BLACK;
+                ctx.lineWidth = 4;
+                ctx.font = '36px Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeText('Game Over!', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20);
+                ctx.fillText('Game Over!', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20);
+                ctx.strokeText('Press SPACE to Restart', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 20);
+                ctx.fillText('Press SPACE to Restart', SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 20);
+                ctx.textAlign = 'left';
+                ctx.fillText(`Score: ${score}`, 10, 40);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
 
         function startGame() {
             console.log('Assets loaded, starting game');
