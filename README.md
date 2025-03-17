@@ -12,7 +12,7 @@ A web-based version of the classic Flappy Bird game, built with HTML5 Canvas and
 - **States**: Idle (start screen), Playing, and Game Over modes.
 
 ## Screenshots
-*(Add a screenshot here once deployed, e.g., via GitHub Issues or an external host like Imgur.)*
+![Flappy Bird in Action](screenshot.png)
 
 ## Setup
 
